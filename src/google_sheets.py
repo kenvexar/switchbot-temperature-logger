@@ -59,12 +59,42 @@ class GoogleSheetsClient:
             self.logger.error(f"エラータイプ: {type(e).__name__}")
             raise
         
-    def connect_worksheet(self, worksheet_name: str = "Sheet1") -> bool:
+    def find_available_worksheet(self) -> Optional[str]:
+        """
+        利用可能なワークシートを検索
+        
+        Returns:
+            str or None: 利用可能なワークシート名
+        """
+        try:
+            spreadsheet = self.gc.open_by_key(self.spreadsheet_id)
+            worksheets = spreadsheet.worksheets()
+            
+            self.logger.info(f"スプレッドシートに {len(worksheets)} 個のワークシートが見つかりました")
+            
+            for worksheet in worksheets:
+                self.logger.info(f"利用可能なワークシート: '{worksheet.title}'")
+            
+            if worksheets:
+                # 最初のワークシートを使用
+                first_worksheet = worksheets[0]
+                self.logger.info(f"最初のワークシート '{first_worksheet.title}' を使用します")
+                return first_worksheet.title
+            else:
+                self.logger.error("利用可能なワークシートが見つかりません")
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"ワークシート検索エラー: {e}")
+            self.logger.error(f"エラータイプ: {type(e).__name__}")
+            return None
+        
+    def connect_worksheet(self, worksheet_name: Optional[str] = None) -> bool:
         """
         ワークシートに接続
         
         Args:
-            worksheet_name: ワークシート名
+            worksheet_name: ワークシート名（None の場合は自動検出）
             
         Returns:
             bool: 接続成功かどうか
@@ -72,6 +102,12 @@ class GoogleSheetsClient:
         try:
             self.logger.debug(f"スプレッドシート ID '{self.spreadsheet_id}' に接続を試行しています")
             spreadsheet = self.gc.open_by_key(self.spreadsheet_id)
+            
+            # ワークシート名が指定されていない場合は自動検出
+            if worksheet_name is None:
+                worksheet_name = self.find_available_worksheet()
+                if worksheet_name is None:
+                    return False
             
             self.logger.debug(f"ワークシート '{worksheet_name}' への接続を試行しています")
             self.worksheet = spreadsheet.worksheet(worksheet_name)
@@ -81,6 +117,16 @@ class GoogleSheetsClient:
             
         except gspread.WorksheetNotFound as e:
             self.logger.error(f"ワークシート '{worksheet_name}' が見つかりません: {e}")
+            
+            # 利用可能なワークシート一覧を表示
+            try:
+                available_worksheet = self.find_available_worksheet()
+                if available_worksheet:
+                    self.logger.info(f"代わりに '{available_worksheet}' への接続を試行します")
+                    return self.connect_worksheet(available_worksheet)
+            except:
+                pass
+                
             return False
         except gspread.SpreadsheetNotFound as e:
             self.logger.error(f"スプレッドシート '{self.spreadsheet_id}' が見つかりません: {e}")
@@ -237,9 +283,9 @@ def create_sheets_client_from_env() -> Optional[GoogleSheetsClient]:
         logger.debug("Google Sheets クライアントの作成を開始します")
         client = GoogleSheetsClient(service_account_info, spreadsheet_id)
         
-        # ワークシートに接続
-        logger.debug("ワークシートへの接続を開始します")
-        if not client.connect_worksheet("Sheet1"):
+        # ワークシートに接続（自動検出）
+        logger.debug("ワークシートへの接続を開始します（自動検出）")
+        if not client.connect_worksheet():
             logger.error("ワークシートへの接続に失敗しました")
             return None
         
