@@ -202,8 +202,8 @@ class GoogleSheetsClient:
             japan_tz = ZoneInfo("Asia/Tokyo")
             japan_time = datetime.now(japan_tz)
             
-            # 日本語時間フォーマット（例: 2024年1月15日 14:30:25）
-            formatted_time = japan_time.strftime("%Y年%m月%d日 %H:%M:%S")
+            # 日時フォーマット（例: 2025/08/22 07:30）
+            formatted_time = japan_time.strftime("%Y/%m/%d %H:%M")
             
             # データ行を準備（日本語時間と温度のみ）
             row_data = [

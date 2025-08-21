@@ -86,6 +86,10 @@ token.json
 
 # uv
 .uv_cache/
+uv.lock
 
 # MCP
 .mcp.json
+
+# Serena cache
+.serena/
