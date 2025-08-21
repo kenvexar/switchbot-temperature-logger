@@ -162,14 +162,8 @@ class GoogleSheetsClient:
             return False
             
         headers = [
-            'timestamp',
-            'device_id', 
-            'temperature',
-            'humidity',
-            'light_level',
-            'device_type',
-            'version',
-            'created_at'
+            '日時',
+            '温度(°C)'
         ]
         
         try:
@@ -190,7 +184,7 @@ class GoogleSheetsClient:
     
     def append_temperature_data(self, temperature_data: Dict) -> bool:
         """
-        温度データを追加
+        温度データを追加（日本語時間と温度のみ）
         
         Args:
             temperature_data: 温度データ辞書
@@ -203,22 +197,24 @@ class GoogleSheetsClient:
             return False
             
         try:
-            # データ行を準備
+            # 日本時間を取得
+            from zoneinfo import ZoneInfo
+            japan_tz = ZoneInfo("Asia/Tokyo")
+            japan_time = datetime.now(japan_tz)
+            
+            # 日本語時間フォーマット（例: 2024年1月15日 14:30:25）
+            formatted_time = japan_time.strftime("%Y年%m月%d日 %H:%M:%S")
+            
+            # データ行を準備（日本語時間と温度のみ）
             row_data = [
-                temperature_data.get('timestamp', ''),
-                temperature_data.get('device_id', ''),
-                temperature_data.get('temperature', 0),
-                temperature_data.get('humidity', 0),
-                temperature_data.get('light_level', 0),
-                temperature_data.get('device_type', ''),
-                temperature_data.get('version', ''),
-                datetime.now().isoformat()  # created_at
+                formatted_time,
+                temperature_data.get('temperature', 0)
             ]
             
             # データを追加
             self.worksheet.append_row(row_data)
-            self.logger.info(f"データを追加しました: 温度={temperature_data.get('temperature')}°C, "
-                           f"湿度={temperature_data.get('humidity')}%")
+            self.logger.info(f"データを追加しました: 時刻={formatted_time}, "
+                           f"温度={temperature_data.get('temperature')}°C")
             
             return True
             
