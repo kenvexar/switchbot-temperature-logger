@@ -1,0 +1,237 @@
+#!/usr/bin/env python3
+"""
+Google Sheets 連携モジュール
+温度データを Google Sheets に自動保存する機能
+"""
+
+import os
+import json
+import logging
+from typing import Dict, List, Optional
+from datetime import datetime
+
+import gspread
+from google.oauth2.service_account import Credentials
+
+
+class GoogleSheetsClient:
+    """Google Sheets への書き込みクライアント"""
+    
+    def __init__(self, service_account_info: Dict, spreadsheet_id: str):
+        """
+        Google Sheets クライアントを初期化
+        
+        Args:
+            service_account_info: サービスアカウント情報（ JSON ）
+            spreadsheet_id: 対象スプレッドシートの ID
+        """
+        self.spreadsheet_id = spreadsheet_id
+        self.logger = logging.getLogger(__name__)
+        
+        # Google Sheets API のスコープ
+        scopes = [
+            'https://www.googleapis.com/auth/spreadsheets',
+            'https://www.googleapis.com/auth/drive'
+        ]
+        
+        # 認証情報の設定
+        credentials = Credentials.from_service_account_info(
+            service_account_info, scopes=scopes
+        )
+        
+        # gspread クライアントの作成
+        self.gc = gspread.authorize(credentials)
+        self.worksheet = None
+        
+    def connect_worksheet(self, worksheet_name: str = "Sheet1") -> bool:
+        """
+        ワークシートに接続
+        
+        Args:
+            worksheet_name: ワークシート名
+            
+        Returns:
+            bool: 接続成功かどうか
+        """
+        try:
+            spreadsheet = self.gc.open_by_key(self.spreadsheet_id)
+            self.worksheet = spreadsheet.worksheet(worksheet_name)
+            self.logger.info(f"ワークシート '{worksheet_name}' に接続しました")
+            return True
+            
+        except gspread.WorksheetNotFound:
+            self.logger.error(f"ワークシート '{worksheet_name}' が見つかりません")
+            return False
+        except Exception as e:
+            self.logger.error(f"ワークシート接続エラー: {e}")
+            return False
+    
+    def setup_headers(self) -> bool:
+        """
+        ヘッダー行を設定（初回のみ実行）
+        
+        Returns:
+            bool: 設定成功かどうか
+        """
+        if not self.worksheet:
+            self.logger.error("ワークシートに接続していません")
+            return False
+            
+        headers = [
+            'timestamp',
+            'device_id', 
+            'temperature',
+            'humidity',
+            'light_level',
+            'device_type',
+            'version',
+            'created_at'
+        ]
+        
+        try:
+            # 1 行目が空の場合のみヘッダーを設定
+            first_row = self.worksheet.row_values(1)
+            if not first_row or first_row[0] == '':
+                self.worksheet.insert_row(headers, 1)
+                self.logger.info("ヘッダー行を設定しました")
+            else:
+                self.logger.info("ヘッダー行は既に存在します")
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"ヘッダー設定エラー: {e}")
+            return False
+    
+    def append_temperature_data(self, temperature_data: Dict) -> bool:
+        """
+        温度データを追加
+        
+        Args:
+            temperature_data: 温度データ辞書
+            
+        Returns:
+            bool: 追加成功かどうか
+        """
+        if not self.worksheet:
+            self.logger.error("ワークシートに接続していません")
+            return False
+            
+        try:
+            # データ行を準備
+            row_data = [
+                temperature_data.get('timestamp', ''),
+                temperature_data.get('device_id', ''),
+                temperature_data.get('temperature', 0),
+                temperature_data.get('humidity', 0),
+                temperature_data.get('light_level', 0),
+                temperature_data.get('device_type', ''),
+                temperature_data.get('version', ''),
+                datetime.now().isoformat()  # created_at
+            ]
+            
+            # データを追加
+            self.worksheet.append_row(row_data)
+            self.logger.info(f"データを追加しました: 温度={temperature_data.get('temperature')}°C, "
+                           f"湿度={temperature_data.get('humidity')}%")
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"データ追加エラー: {e}")
+            return False
+    
+    def get_row_count(self) -> int:
+        """
+        データ行数を取得
+        
+        Returns:
+            int: 行数（ヘッダー含む）
+        """
+        if not self.worksheet:
+            return 0
+            
+        try:
+            return len(self.worksheet.get_all_values())
+        except Exception as e:
+            self.logger.error(f"行数取得エラー: {e}")
+            return 0
+
+
+def create_sheets_client_from_env() -> Optional[GoogleSheetsClient]:
+    """
+    環境変数から Google Sheets クライアントを作成
+    
+    Returns:
+        GoogleSheetsClient or None: 作成に失敗した場合は None
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # 環境変数の取得
+        spreadsheet_id = os.getenv('GOOGLE_SHEETS_SPREADSHEET_ID')
+        service_account_key = os.getenv('GOOGLE_SERVICE_ACCOUNT_KEY')
+        
+        if not spreadsheet_id:
+            logger.error("GOOGLE_SHEETS_SPREADSHEET_ID 環境変数が設定されていません")
+            return None
+            
+        if not service_account_key:
+            logger.error("GOOGLE_SERVICE_ACCOUNT_KEY 環境変数が設定されていません")
+            return None
+        
+        # JSON 文字列をパース
+        service_account_info = json.loads(service_account_key)
+        
+        # クライアントを作成
+        client = GoogleSheetsClient(service_account_info, spreadsheet_id)
+        
+        # ワークシートに接続
+        if not client.connect_worksheet("Sheet1"):
+            return None
+        
+        # ヘッダーを設定
+        client.setup_headers()
+        
+        logger.info("Google Sheets クライアントを作成しました")
+        return client
+        
+    except json.JSONDecodeError as e:
+        logger.error(f"サービスアカウントキーの JSON 解析エラー: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Google Sheets クライアント作成エラー: {e}")
+        return None
+
+
+def save_to_sheets(temperature_data: Dict) -> bool:
+    """
+    温度データを Google Sheets に保存
+    
+    Args:
+        temperature_data: 温度データ辞書
+        
+    Returns:
+        bool: 保存成功かどうか
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # クライアントを作成
+        client = create_sheets_client_from_env()
+        if not client:
+            logger.error("Google Sheets クライアントの作成に失敗しました")
+            return False
+        
+        # データを保存
+        success = client.append_temperature_data(temperature_data)
+        
+        if success:
+            row_count = client.get_row_count()
+            logger.info(f"Google Sheets への保存完了（総行数: {row_count}）")
+        
+        return success
+        
+    except Exception as e:
+        logger.error(f"Google Sheets 保存エラー: {e}")
+        return False

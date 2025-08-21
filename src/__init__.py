@@ -1,0 +1,1 @@
+# SwitchBot Temperature Logger
