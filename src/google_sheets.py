@@ -28,20 +28,30 @@ class GoogleSheetsClient:
         self.spreadsheet_id = spreadsheet_id
         self.logger = logging.getLogger(__name__)
         
-        # Google Sheets API のスコープ
-        scopes = [
-            'https://www.googleapis.com/auth/spreadsheets',
-            'https://www.googleapis.com/auth/drive'
-        ]
-        
-        # 認証情報の設定
-        credentials = Credentials.from_service_account_info(
-            service_account_info, scopes=scopes
-        )
-        
-        # gspread クライアントの作成
-        self.gc = gspread.authorize(credentials)
-        self.worksheet = None
+        try:
+            # Google Sheets API のスコープ
+            scopes = [
+                'https://www.googleapis.com/auth/spreadsheets',
+                'https://www.googleapis.com/auth/drive'
+            ]
+            
+            self.logger.debug(f"サービスアカウント情報のキー: {list(service_account_info.keys())}")
+            
+            # 認証情報の設定
+            credentials = Credentials.from_service_account_info(
+                service_account_info, scopes=scopes
+            )
+            
+            # gspread クライアントの作成
+            self.gc = gspread.authorize(credentials)
+            self.worksheet = None
+            
+            self.logger.debug("gspread クライアントの作成に成功しました")
+            
+        except Exception as e:
+            self.logger.error(f"GoogleSheetsClient 初期化エラー: {e}")
+            self.logger.error(f"エラータイプ: {type(e).__name__}")
+            raise
         
     def connect_worksheet(self, worksheet_name: str = "Sheet1") -> bool:
         """
@@ -54,16 +64,24 @@ class GoogleSheetsClient:
             bool: 接続成功かどうか
         """
         try:
+            self.logger.debug(f"スプレッドシート ID '{self.spreadsheet_id}' に接続を試行しています")
             spreadsheet = self.gc.open_by_key(self.spreadsheet_id)
+            
+            self.logger.debug(f"ワークシート '{worksheet_name}' への接続を試行しています")
             self.worksheet = spreadsheet.worksheet(worksheet_name)
+            
             self.logger.info(f"ワークシート '{worksheet_name}' に接続しました")
             return True
             
-        except gspread.WorksheetNotFound:
-            self.logger.error(f"ワークシート '{worksheet_name}' が見つかりません")
+        except gspread.WorksheetNotFound as e:
+            self.logger.error(f"ワークシート '{worksheet_name}' が見つかりません: {e}")
+            return False
+        except gspread.SpreadsheetNotFound as e:
+            self.logger.error(f"スプレッドシート '{self.spreadsheet_id}' が見つかりません: {e}")
             return False
         except Exception as e:
             self.logger.error(f"ワークシート接続エラー: {e}")
+            self.logger.error(f"エラータイプ: {type(e).__name__}")
             return False
     
     def setup_headers(self) -> bool:
@@ -101,6 +119,7 @@ class GoogleSheetsClient:
             
         except Exception as e:
             self.logger.error(f"ヘッダー設定エラー: {e}")
+            self.logger.error(f"エラータイプ: {type(e).__name__}")
             return False
     
     def append_temperature_data(self, temperature_data: Dict) -> bool:
@@ -139,6 +158,7 @@ class GoogleSheetsClient:
             
         except Exception as e:
             self.logger.error(f"データ追加エラー: {e}")
+            self.logger.error(f"エラータイプ: {type(e).__name__}")
             return False
     
     def get_row_count(self) -> int:
@@ -155,6 +175,7 @@ class GoogleSheetsClient:
             return len(self.worksheet.get_all_values())
         except Exception as e:
             self.logger.error(f"行数取得エラー: {e}")
+            self.logger.error(f"エラータイプ: {type(e).__name__}")
             return 0
 
 
@@ -172,6 +193,9 @@ def create_sheets_client_from_env() -> Optional[GoogleSheetsClient]:
         spreadsheet_id = os.getenv('GOOGLE_SHEETS_SPREADSHEET_ID')
         service_account_key = os.getenv('GOOGLE_SERVICE_ACCOUNT_KEY')
         
+        logger.debug(f"GOOGLE_SHEETS_SPREADSHEET_ID の長さ: {len(spreadsheet_id) if spreadsheet_id else 0}")
+        logger.debug(f"GOOGLE_SERVICE_ACCOUNT_KEY の長さ: {len(service_account_key) if service_account_key else 0}")
+        
         if not spreadsheet_id:
             logger.error("GOOGLE_SHEETS_SPREADSHEET_ID 環境変数が設定されていません")
             return None
@@ -181,16 +205,22 @@ def create_sheets_client_from_env() -> Optional[GoogleSheetsClient]:
             return None
         
         # JSON 文字列をパース
+        logger.debug("サービスアカウントキーの JSON 解析を開始します")
         service_account_info = json.loads(service_account_key)
+        logger.debug("サービスアカウントキーの JSON 解析が完了しました")
         
         # クライアントを作成
+        logger.debug("Google Sheets クライアントの作成を開始します")
         client = GoogleSheetsClient(service_account_info, spreadsheet_id)
         
         # ワークシートに接続
+        logger.debug("ワークシートへの接続を開始します")
         if not client.connect_worksheet("Sheet1"):
+            logger.error("ワークシートへの接続に失敗しました")
             return None
         
         # ヘッダーを設定
+        logger.debug("ヘッダーの設定を開始します")
         client.setup_headers()
         
         logger.info("Google Sheets クライアントを作成しました")
@@ -198,9 +228,13 @@ def create_sheets_client_from_env() -> Optional[GoogleSheetsClient]:
         
     except json.JSONDecodeError as e:
         logger.error(f"サービスアカウントキーの JSON 解析エラー: {e}")
+        logger.error(f"JSON データの先頭100文字: {service_account_key[:100] if service_account_key else 'None'}")
         return None
     except Exception as e:
         logger.error(f"Google Sheets クライアント作成エラー: {e}")
+        logger.error(f"エラータイプ: {type(e).__name__}")
+        import traceback
+        logger.error(f"スタックトレース: {traceback.format_exc()}")
         return None
 
 
@@ -218,12 +252,14 @@ def save_to_sheets(temperature_data: Dict) -> bool:
     
     try:
         # クライアントを作成
+        logger.debug("Google Sheets クライアントの作成を開始します")
         client = create_sheets_client_from_env()
         if not client:
             logger.error("Google Sheets クライアントの作成に失敗しました")
             return False
         
         # データを保存
+        logger.debug("温度データの保存を開始します")
         success = client.append_temperature_data(temperature_data)
         
         if success:
@@ -234,4 +270,7 @@ def save_to_sheets(temperature_data: Dict) -> bool:
         
     except Exception as e:
         logger.error(f"Google Sheets 保存エラー: {e}")
+        logger.error(f"エラータイプ: {type(e).__name__}")
+        import traceback
+        logger.error(f"スタックトレース: {traceback.format_exc()}")
         return False

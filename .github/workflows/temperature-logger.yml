@@ -41,7 +41,7 @@ jobs:
           # ローカルストレージ設定（バックアップ用）
           DATABASE_TYPE: csv
           CSV_PATH: data/temperature.csv
-          LOG_LEVEL: INFO
+          LOG_LEVEL: DEBUG
           LOG_FILE: logs/temperature_logger.log
           
           # Google Sheets 設定
