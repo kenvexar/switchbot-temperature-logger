@@ -18,7 +18,7 @@ uv run main.py --test-sheets
 # Run once (single data collection)
 uv run main.py --once
 
-# Run continuous monitoring (default 10-minute intervals)
+# Run continuous monitoring (executes at :00 and :30 minutes each hour)
 uv run main.py
 
 # Clean up old data
@@ -68,7 +68,8 @@ Environment variables in `.env` file:
 - `DATABASE_TYPE`: "sqlite" or "csv"
 - `DATABASE_PATH`, `CSV_PATH`: Storage file paths
 - `GOOGLE_SHEETS_SPREADSHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_KEY`: Optional cloud backup
-- `RECORD_INTERVAL_MINUTES`, `DATA_RETENTION_DAYS`: Scheduling parameters
+- `RECORD_INTERVAL_MINUTES`: Legacy parameter (now runs at :00 and :30 each hour)
+- `DATA_RETENTION_DAYS`: Data cleanup retention period
 
 ## Code Conventions
 

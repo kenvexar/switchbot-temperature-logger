@@ -9,8 +9,8 @@ import sys
 class TemperatureScheduler:
     """温度データの定期取得スケジューラー"""
     
-    def __init__(self, interval_minutes: int):
-        self.interval_minutes = interval_minutes
+    def __init__(self, interval_minutes: int = None):
+        self.interval_minutes = interval_minutes  # 後方互換性のため保持
         self.logger = logging.getLogger(__name__)
         self.is_running = False
         self._setup_signal_handlers()
@@ -27,9 +27,11 @@ class TemperatureScheduler:
         sys.exit(0)
     
     def add_job(self, job_func: Callable, *args, **kwargs):
-        """スケジュールにジョブを追加"""
-        schedule.every(self.interval_minutes).minutes.do(job_func, *args, **kwargs)
-        self.logger.info(f"ジョブを追加しました: {self.interval_minutes} 分間隔")
+        """スケジュールにジョブを追加（00分と30分ちょうどに実行）"""
+        # 毎時00分と30分に実行
+        schedule.every().hour.at(":00").do(job_func, *args, **kwargs)
+        schedule.every().hour.at(":30").do(job_func, *args, **kwargs)
+        self.logger.info("ジョブを追加しました: 毎時00分と30分に実行")
     
     def add_cleanup_job(self, cleanup_func: Callable, hour: str = "02:00", *args, **kwargs):
         """日次クリーンアップジョブを追加"""
@@ -55,7 +57,9 @@ class TemperatureScheduler:
             self.logger.info("初回実行を開始します...")
             for job in schedule.jobs:
                 try:
-                    job.run()
+                    # クリーンアップジョブは初回実行しない
+                    if hasattr(job.job_func, '__name__') and 'cleanup' not in job.job_func.__name__.lower():
+                        job.run()
                 except Exception as e:
                     self.logger.error(f"初回実行でエラーが発生しました: {e}")
         
