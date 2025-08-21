@@ -37,6 +37,12 @@ class GoogleSheetsClient:
             
             self.logger.debug(f"サービスアカウント情報のキー: {list(service_account_info.keys())}")
             
+            # サービスアカウントの詳細情報をログ出力
+            client_email = service_account_info.get('client_email', 'N/A')
+            project_id = service_account_info.get('project_id', 'N/A')
+            self.logger.info(f"使用するサービスアカウント: {client_email}")
+            self.logger.info(f"プロジェクト ID: {project_id}")
+            
             # 認証情報の設定
             credentials = Credentials.from_service_account_info(
                 service_account_info, scopes=scopes
@@ -79,9 +85,23 @@ class GoogleSheetsClient:
         except gspread.SpreadsheetNotFound as e:
             self.logger.error(f"スプレッドシート '{self.spreadsheet_id}' が見つかりません: {e}")
             return False
+        except gspread.exceptions.APIError as e:
+            self.logger.error(f"Google Sheets API エラー: {e}")
+            self.logger.error(f"HTTP ステータス: {e.response.status_code if hasattr(e, 'response') else 'N/A'}")
+            if hasattr(e, 'response') and hasattr(e.response, 'content'):
+                self.logger.error(f"レスポンス内容: {e.response.content}")
+            return False
         except Exception as e:
             self.logger.error(f"ワークシート接続エラー: {e}")
             self.logger.error(f"エラータイプ: {type(e).__name__}")
+            
+            # HTTPリクエストエラーの詳細を取得
+            if hasattr(e, 'response'):
+                self.logger.error(f"HTTP ステータス: {e.response.status_code}")
+                self.logger.error(f"HTTP レスポンス: {e.response.text}")
+            
+            import traceback
+            self.logger.error(f"スタックトレース: {traceback.format_exc()}")
             return False
     
     def setup_headers(self) -> bool:
@@ -203,6 +223,10 @@ def create_sheets_client_from_env() -> Optional[GoogleSheetsClient]:
         if not service_account_key:
             logger.error("GOOGLE_SERVICE_ACCOUNT_KEY 環境変数が設定されていません")
             return None
+        
+        # スプレッドシート ID の妥当性チェック
+        logger.info(f"対象スプレッドシート ID: {spreadsheet_id}")
+        logger.info(f"スプレッドシート URL: https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit")
         
         # JSON 文字列をパース
         logger.debug("サービスアカウントキーの JSON 解析を開始します")
