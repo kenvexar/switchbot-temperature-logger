@@ -18,8 +18,7 @@ uv run main.py --test-sheets
 # Run once (single data collection)
 uv run main.py --once
 
-# Run continuous monitoring (executes at :00 and :30 minutes each hour)
-uv run main.py
+# Note: Scheduling is handled by GitHub Actions, not the application itself
 
 # Clean up old data
 uv run main.py --cleanup
@@ -44,18 +43,17 @@ sqlite3 data/temperature.db "SELECT * FROM temperature_data ORDER BY timestamp D
 ## Architecture Overview
 
 ### Core Components
-- **main.py**: Entry point with CLI argument handling and main execution loops
+- **main.py**: Entry point with CLI argument handling for single execution
 - **src/switchbot_api.py**: SwitchBotAPI class for device communication
 - **src/data_storage.py**: Abstract DataStorage with CSVStorage/SQLiteStorage implementations
 - **src/google_sheets.py**: GoogleSheetsClient for cloud data backup
-- **src/scheduler.py**: TemperatureScheduler for periodic execution
 - **config/settings.py**: Environment-based configuration management
 
 ### Data Flow
 1. SwitchBotAPI retrieves temperature/humidity/light data from SwitchBot Hub 2
 2. DataStorage saves to local CSV or SQLite database
 3. GoogleSheetsClient optionally backs up to Google Sheets (日時 + 温度のみ)
-4. TemperatureScheduler manages periodic execution and cleanup
+4. GitHub Actions manages periodic execution scheduling
 
 ### Storage Backends
 - **CSV**: Simple file-based storage with configurable path
@@ -68,7 +66,6 @@ Environment variables in `.env` file:
 - `DATABASE_TYPE`: "sqlite" or "csv"
 - `DATABASE_PATH`, `CSV_PATH`: Storage file paths
 - `GOOGLE_SHEETS_SPREADSHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_KEY`: Optional cloud backup
-- `RECORD_INTERVAL_MINUTES`: Legacy parameter (now runs at :00 and :30 each hour)
 - `DATA_RETENTION_DAYS`: Data cleanup retention period
 
 ## Code Conventions
@@ -88,6 +85,5 @@ No automated test framework configured. Test manually using:
 ### Package Management
 Uses `uv` with `pyproject.toml`. Dependencies include:
 - `requests` for HTTP API calls
-- `schedule` for periodic execution
 - `gspread` + `google-auth` for Google Sheets integration
 - `python-dotenv` for environment configuration

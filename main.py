@@ -12,7 +12,6 @@ sys.path.append(str(Path(__file__).parent))
 
 from src.switchbot_api import SwitchBotAPI
 from src.data_storage import create_storage
-from src.scheduler import TemperatureScheduler
 from src.logger_config import setup_logging
 from config.settings import settings
 
@@ -135,7 +134,7 @@ def list_devices():
                     print(f"  ID: {device.get('deviceId', 'Unknown')}")
                     print(f"  タイプ: {device.get('deviceType', 'Unknown')}")
                     if device.get('hubDeviceId'):
-                        print(f"  ハブID: {device.get('hubDeviceId')}")
+                        print(f"  ハブ ID: {device.get('hubDeviceId')}")
                     print(f"  ---")
             
             # 仮想赤外線リモートデバイス
@@ -146,10 +145,10 @@ def list_devices():
                     print(f"  ID: {device.get('deviceId', 'Unknown')}")
                     print(f"  タイプ: {device.get('remoteType', 'Unknown')}")
                     if device.get('hubDeviceId'):
-                        print(f"  ハブID: {device.get('hubDeviceId')}")
+                        print(f"  ハブ ID: {device.get('hubDeviceId')}")
                     print(f"  ---")
             
-            print("\n温度センサーデータを取得したいデバイスの「ID」を .env ファイルの SWITCHBOT_DEVICE_ID に設定してください。")
+            print("\n 温度センサーデータを取得したいデバイスの「 ID 」を .env ファイルの SWITCHBOT_DEVICE_ID に設定してください。")
             return True
         else:
             logger.error("デバイス一覧の取得に失敗しました")
@@ -241,38 +240,13 @@ def main():
         log_temperature_data()
         sys.exit(0)
     
-    # 通常の定期実行モード
-    logger = setup_logging(settings.LOG_FILE, settings.LOG_LEVEL, console_output=True)
-    
-    try:
-        settings.validate()
-        logger.info("SwitchBot Temperature Logger を開始します")
-        logger.info(f"記録間隔: {settings.RECORD_INTERVAL_MINUTES} 分")
-        logger.info(f"データ保持期間: {settings.DATA_RETENTION_DAYS} 日")
-        logger.info(f"ストレージタイプ: {settings.DATABASE_TYPE}")
-        
-        # スケジューラーを作成
-        scheduler = TemperatureScheduler(settings.RECORD_INTERVAL_MINUTES)
-        
-        # 温度記録ジョブを追加
-        scheduler.add_job(log_temperature_data)
-        
-        # 日次クリーンアップジョブを追加
-        scheduler.add_cleanup_job(cleanup_old_data, "02:00")
-        
-        # スケジューラーを開始
-        scheduler.start()
-        
-    except ValueError as e:
-        logger.error(f"設定エラー: {e}")
-        logger.error("必要な環境変数を .env ファイルに設定してください")
-        sys.exit(1)
-    except KeyboardInterrupt:
-        logger.info("プログラムが中断されました")
-        sys.exit(0)
-    except Exception as e:
-        logger.error(f"プログラム実行中にエラーが発生しました: {e}")
-        sys.exit(1)
+    # GitHub Actions からの実行時は --once を使用してください
+    print("GitHub Actions でのスケジューリングを想定しているため、")
+    print("プログラム自体にはスケジューリング機能がありません。")
+    print("")
+    print("一回だけ実行する場合: python main.py --once")
+    print("テスト実行: python main.py --test")
+    sys.exit(0)
 
 if __name__ == "__main__":
     main()
