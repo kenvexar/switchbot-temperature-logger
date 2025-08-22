@@ -1,6 +1,6 @@
 # Google Sheets API 設定ガイド
 
-GitHub Actions から Google Sheets にデータを自動保存するための設定手順です。
+Google Cloud Functions から Google Sheets にデータを自動保存するための設定手順です。
 
 ## 1. Google Cloud Console での設定
 
@@ -52,11 +52,13 @@ GitHub Actions から Google Sheets にデータを自動保存するための�
 
 ### 2.2 ヘッダー行の設定
 
-A1 セルから以下のヘッダーを設定:
+A1 セルから以下のヘッダーを設定（日本語形式で温度と日時のみ）:
 
-| A | B | C | D | E | F | G | H |
-|---|---|---|---|---|---|---|---|
-| timestamp | device_id | temperature | humidity | light_level | device_type | version | created_at |
+| A | B |
+|---|---|
+| 日時 | 温度 |
+
+**注意**: このアプリケーションは温度と日時のみを記録します。日時は日本語フォーマット（例: 2024年01月01日 12:00:00）で保存されます。
 
 ### 2.3 共有設定
 
@@ -67,56 +69,66 @@ A1 セルから以下のヘッダーを設定:
 3. 権限: **編集者**
 4. **送信** をクリック
 
-## 3. GitHub Secrets の設定
+## 3. Cloud Functions 環境変数の設定
 
-リポジトリの Settings → Secrets and variables → Actions で以下を追加:
+Google Cloud Functions デプロイ時に以下の環境変数を設定します:
 
 ### 基本認証情報
-```
-SWITCHBOT_TOKEN=your_token_here
-SWITCHBOT_SECRET=your_secret_here
-SWITCHBOT_DEVICE_ID=your_device_id_here
+```bash
+export SWITCHBOT_TOKEN="your_token_here"
+export SWITCHBOT_SECRET="your_secret_here"
+export SWITCHBOT_DEVICE_ID="your_device_id_here"
 ```
 
 ### Google Sheets 関連
-```
-GOOGLE_SHEETS_SPREADSHEET_ID=1ABC...XYZ
-GOOGLE_SERVICE_ACCOUNT_EMAIL=switchbot-sheets-writer@project-id.iam.gserviceaccount.com
+```bash
+export GOOGLE_SHEETS_SPREADSHEET_ID="1ABC...XYZ"
 ```
 
 ### Google サービスアカウントキー
-```
-GOOGLE_SERVICE_ACCOUNT_KEY=
+```bash
+export GOOGLE_SERVICE_ACCOUNT_KEY='{"type":"service_account","project_id":"your-project-id",...}'
 ```
 
 **GOOGLE_SERVICE_ACCOUNT_KEY の設定方法:**
 1. ダウンロードした JSON ファイルをテキストエディタで開く
-2. 内容全体をコピー
-3. GitHub Secrets に貼り付け
+2. 内容全体を1行にする（改行を削除）
+3. シングルクォートで囲んで環境変数に設定
 
 例:
-```json
-{
-  "type": "service_account",
-  "project_id": "your-project-id",
-  "private_key_id": "...",
-  "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
-  "client_email": "switchbot-sheets-writer@project-id.iam.gserviceaccount.com",
-  "client_id": "...",
-  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-  "token_uri": "https://oauth2.googleapis.com/token",
-  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-  "client_x509_cert_url": "..."
-}
+```bash
+export GOOGLE_SERVICE_ACCOUNT_KEY='{"type": "service_account","project_id": "your-project-id","private_key_id": "...","private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email": "switchbot-sheets-writer@project-id.iam.gserviceaccount.com","client_id": "...","auth_uri": "https://accounts.google.com/o/oauth2/auth","token_uri": "https://oauth2.googleapis.com/token","auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs","client_x509_cert_url": "..."}'
 ```
+
+### デプロイスクリプトでの自動設定
+
+`free-tier-deploy.sh` を使用する場合、環境変数が自動的に Cloud Functions に設定されます。
 
 ## 4. 設定確認
 
 すべての設定が完了したら:
 
-1. GitHub Actions の手動実行でテスト
-2. Google Sheets にデータが追加されることを確認
-3. 30 分間隔での自動実行を確認
+### ローカルでのテスト
+```bash
+# Google Sheets 接続テスト
+uv run main.py --test-sheets
+```
+
+### Cloud Functions でのテスト
+```bash
+# 関数をデプロイ
+./free-tier-deploy.sh
+
+# 手動でテスト実行
+curl -X POST "https://REGION-PROJECT.cloudfunctions.net/collect-temperature-data" \
+  -H "Content-Type: application/json" \
+  -d '{"action": "collect"}'
+```
+
+### 確認項目
+1. Google Sheets にデータが追加されることを確認
+2. 日時が日本語形式（2024年01月01日 12:00:00）で記録されることを確認
+3. 毎時00分・30分の自動実行を確認
 
 ## トラブルシューティング
 
@@ -136,6 +148,18 @@ GOOGLE_SERVICE_ACCOUNT_KEY=
 
 ### デバッグ方法
 
-GitHub Actions のログから詳細なエラー情報を確認:
-1. Actions タブ → 失敗したワークフロー
-2. ログを展開してエラー詳細を確認
+**Cloud Functions のログ確認:**
+1. [Google Cloud Console](https://console.cloud.google.com/logs/query) でログを確認
+2. 関数名でフィルタリング: `resource.labels.function_name="collect-temperature-data"`
+
+**ローカルでのデバッグ:**
+```bash
+# 詳細ログでローカル実行
+LOG_LEVEL=DEBUG uv run main.py --test-sheets
+```
+
+**環境変数の確認:**
+```bash
+# Cloud Functions で環境変数を確認
+gcloud functions describe collect-temperature-data --region=asia-northeast1
+```

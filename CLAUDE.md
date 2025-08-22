@@ -18,7 +18,7 @@ uv run main.py --test-sheets
 # Run once (single data collection)
 uv run main.py --once
 
-# Note: Scheduling is handled by GitHub Actions, not the application itself
+# Note: Scheduling is handled by Google Cloud Scheduler with Cloud Functions
 
 # Clean up old data
 uv run main.py --cleanup
@@ -40,25 +40,58 @@ tail -f logs/temperature_logger.log
 sqlite3 data/temperature.db "SELECT * FROM temperature_data ORDER BY timestamp DESC LIMIT 10;"
 ```
 
+### Google Cloud Functions Deployment
+```bash
+# Set environment variables before deployment
+export SWITCHBOT_TOKEN="your-token"
+export SWITCHBOT_SECRET="your-secret"
+export SWITCHBOT_DEVICE_ID="your-device-id"
+
+# Deploy using the script
+chmod +x deploy.sh
+./deploy.sh
+
+# Or deploy manually
+gcloud functions deploy collect-temperature-data \
+  --runtime python311 \
+  --trigger-http \
+  --allow-unauthenticated \
+  --entry-point collect_temperature_data \
+  --source . \
+  --timeout 540s \
+  --memory 256MB \
+  --region asia-northeast1
+
+# Test the deployed function
+curl -X POST "https://REGION-PROJECT.cloudfunctions.net/collect-temperature-data" \
+  -H "Content-Type: application/json" \
+  -d '{"action": "test"}'
+
+# Or use the free-tier deployment script
+chmod +x free-tier-deploy.sh
+./free-tier-deploy.sh
+```
+
 ## Architecture Overview
 
 ### Core Components
-- **main.py**: Entry point with CLI argument handling for single execution
+- **main.py**: Entry point with CLI argument handling and Google Cloud Functions HTTP trigger
 - **src/switchbot_api.py**: SwitchBotAPI class for device communication
 - **src/data_storage.py**: Abstract DataStorage with CSVStorage/SQLiteStorage implementations
 - **src/google_sheets.py**: GoogleSheetsClient for cloud data backup
 - **config/settings.py**: Environment-based configuration management
 
 ### Data Flow
-1. SwitchBotAPI retrieves temperature/humidity/light data from SwitchBot Hub 2
-2. DataStorage saves to local CSV or SQLite database
-3. GoogleSheetsClient optionally backs up to Google Sheets (日時 + 温度のみ)
-4. GitHub Actions manages periodic execution scheduling
+1. Google Cloud Scheduler triggers HTTP request to Cloud Functions
+2. SwitchBotAPI retrieves temperature/humidity/light data from SwitchBot Hub 2
+3. DataStorage saves to temporary SQLite database or Google Sheets
+4. GoogleSheetsClient optionally backs up to Google Sheets (日時 + 温度のみ)
+5. Cloud Functions returns success/error response
 
 ### Storage Backends
-- **CSV**: Simple file-based storage with configurable path
-- **SQLite**: Relational database with automatic schema creation
-- **Google Sheets**: Cloud backup with Japanese time format (YYYY 年 MM 月 DD 日 HH:MM:SS)
+- **CSV**: Simple file-based storage with configurable path (local development)
+- **SQLite**: Relational database with automatic schema creation (temporary in Cloud Functions)
+- **Google Sheets**: Primary cloud storage with Japanese time format (YYYY 年 MM 月 DD 日 HH:MM:SS)
 
 ### Configuration
 Environment variables in `.env` file:
@@ -83,7 +116,8 @@ No automated test framework configured. Test manually using:
 - `uv run main.py --once` for single execution verification
 
 ### Package Management
-Uses `uv` with `pyproject.toml`. Dependencies include:
+Uses `uv` with `pyproject.toml` for local development, `requirements.txt` for Cloud Functions. Dependencies include:
 - `requests` for HTTP API calls
 - `gspread` + `google-auth` for Google Sheets integration
 - `python-dotenv` for environment configuration
+- `functions-framework` for Google Cloud Functions HTTP triggers

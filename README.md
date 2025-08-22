@@ -1,34 +1,61 @@
 # SwitchBot Temperature Logger
 
-SwitchBot ハブ 2 の気温・湿度・照度データを自動的に記録するシステム
+SwitchBot ハブ 2 の気温・湿度・照度データを Google Cloud Functions で自動記録するシステム
 
 ## 特徴
 
-- **自動記録**: 指定された間隔で温度データを自動取得・記録
-- **柔軟なストレージ**: CSV ファイルまたは SQLite データベースに対応
-- **スケジューリング**: 定期実行とデータクリーンアップ機能
+- **サーバーレス実行**: Google Cloud Functions で完全自動化
+- **定期実行**: Cloud Scheduler で毎時00分・30分に自動実行
+- **無料運用**: Google Cloud 無料枠内で月間1,400回以上実行可能
+- **柔軟なストレージ**: Google Sheets または SQLite データベースに対応
+- **自動クリーンアップ**: 週1回の古いデータ削除
 - **設定管理**: 環境変数による柔軟な設定
 - **接続テスト**: API 接続確認機能
-- **ログ機能**: 詳細なログ出力とローテーション
 
 ## 必要条件
 
-- Python 3.11+
-- SwitchBot 公式 API のトークンとシークレットキー
+- Google Cloud Platform アカウント
+- SwitchBot 公式 API のトークンとシークレットキー  
 - SwitchBot ハブ 2 デバイス
+- Python 3.11+（ローカル開発時のみ）
 
-## インストール
+## クイックスタート
 
-1. リポジトリをクローン:
-   ```bash
-   git clone <repository-url>
-   cd switchbot-temperature-logger
-   ```
+### 1. リポジトリのクローン
+```bash
+git clone <repository-url>
+cd switchbot-temperature-logger
+```
 
-2. 依存関係をインストール:
-   ```bash
-   uv sync
-   ```
+### 2. Google Cloud Functions へのデプロイ（推奨）
+
+**無料枠での運用:**
+```bash
+# 環境変数を設定
+export SWITCHBOT_TOKEN="your_token_here"
+export SWITCHBOT_SECRET="your_secret_here"  
+export SWITCHBOT_DEVICE_ID="your_device_id_here"
+
+# 無料枠向けデプロイ
+chmod +x free-tier-deploy.sh
+./free-tier-deploy.sh
+```
+
+**標準デプロイ:**
+```bash
+chmod +x deploy.sh
+./deploy.sh
+```
+
+### 3. ローカル開発・テスト
+
+```bash
+# 依存関係をインストール
+uv sync
+
+# API 接続テスト
+uv run main.py --test
+```
 
 ## 設定
 
@@ -71,89 +98,89 @@ DATA_RETENTION_DAYS=30
 
 ## 使用方法
 
-### API 接続テスト
+### Cloud Functions での自動実行
 
-設定確認と API 接続テスト:
+デプロイ後は Google Cloud Scheduler により自動実行されます：
+
+- **温度データ収集**: 毎時00分・30分（月間1,440回）
+- **データクリーンアップ**: 毎週月曜日午前2時（月間4回）
+
+### 手動実行・テスト
+
+**ローカルでのテスト:**
 ```bash
+# API 接続テスト
 uv run main.py --test
-```
 
-### 1 回だけ実行
+# デバイス一覧表示
+uv run main.py --list-devices
 
-データを 1 度だけ取得・記録:
-```bash
+# 1回だけ実行
 uv run main.py --once
-```
 
-### 定期実行モード
+# Google Sheets 接続テスト
+uv run main.py --test-sheets
 
-定期的に実行（デフォルトは 10 分間隔）:
-```bash
-uv run main.py
-```
-
-デフォルトの記録間隔は 10 分で、設定により変更可能です。  
-停止する場合は `Ctrl+C` で終了してください。
-
-### 古いデータの削除
-
-```bash
+# 古いデータの削除
 uv run main.py --cleanup
 ```
 
-### 自動実行設定
-
-システムサービスとして実行する場合は systemd （ Linux ）や launchd （ macOS ）を使用:
-
-**macOS での launchd 設定例:**
+**Cloud Functions での手動実行:**
 ```bash
-# ~/Library/LaunchAgents/switchbot.temperature.logger.plist
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>switchbot.temperature.logger</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/path/to/your/uv</string>
-        <string>run</string>
-        <string>/path/to/your/switchbot-temperature-logger/main.py</string>
-    </array>
-    <key>WorkingDirectory</key>
-    <string>/path/to/your/switchbot-temperature-logger</string>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-</dict>
-</plist>
+# 温度データ収集
+curl -X POST "https://REGION-PROJECT.cloudfunctions.net/collect-temperature-data" \
+  -H "Content-Type: application/json" \
+  -d '{"action": "collect"}'
+
+# 接続テスト  
+curl -X POST "https://REGION-PROJECT.cloudfunctions.net/collect-temperature-data" \
+  -H "Content-Type: application/json" \
+  -d '{"action": "test"}'
+
+# クリーンアップ
+curl -X POST "https://REGION-PROJECT.cloudfunctions.net/collect-temperature-data" \
+  -H "Content-Type: application/json" \
+  -d '{"action": "cleanup"}'
 ```
 
-## データ構造
+## データ構造とストレージ
 
-### SQLite データベース
+### Google Sheets（推奨）
+
+Google Sheets に温度と時刻のみを記録（日本語フォーマット）：
+
+| 列 | 説明 | 例 |
+|---|------|-----|  
+| A | 日時 | 2024年01月01日 12:00:00 |
+| B | 温度 | 22.5 |
+
+### SQLite データベース（ローカル/一時）
 
 テーブル名: `temperature_data`
 
 | カラム名 | 型 | 説明 |
 |----------|-----|------|
 | id | INTEGER | 主キー |
-| timestamp | TEXT | データ取得時刻（ ISO 形式） |
+| timestamp | TEXT | データ取得時刻（ISO形式） |
 | device_id | TEXT | デバイス ID |
 | temperature | REAL | 気温（℃） |
-| humidity | REAL | 湿度（% ） |
+| humidity | REAL | 湿度（%） |
 | light_level | INTEGER | 照度レベル |
 | device_type | TEXT | デバイス種別 |
-| version | TEXT | デバイスファームウェアバージョン |
+| version | TEXT | ファームウェアバージョン |
 | created_at | TIMESTAMP | レコード作成時刻 |
 
-### CSV ファイル
-
-ヘッダー: `timestamp,device_id,temperature,humidity,light_level,device_type,version`
+**注意**: Cloud Functions では /tmp に保存され、実行終了時に削除されます。
 
 ## ログ出力
 
+### Cloud Functions
+Google Cloud Console の Logs Explorer で確認：
+```
+https://console.cloud.google.com/logs/query
+```
+
+### ローカル開発
 ログは `logs/temperature_logger.log` に出力されます。  
 ログファイルは 10MB で自動ローテーションし、最大 5 世代まで保持されます。
 
@@ -177,36 +204,47 @@ uv run main.py --cleanup
 - ファイル/ディレクトリの書き込み権限確認
 - ログファイルの容量制限確認
 
+## 費用とリソース
+
+### 無料枠での運用
+
+Google Cloud 無料枠内での月間使用量：
+
+- **Cloud Functions**: 1,444回実行（無料枠200万回の0.072%）
+- **Cloud Scheduler**: 2ジョブ（無料枠3ジョブの66%）
+- **コンピュート時間**: 約370GB秒（無料枠40万GB秒の0.09%）
+
+詳細は `FREE_TIER_GUIDE.md` を参照してください。
+
 ## ファイル構成
 
 ### プロジェクト構造
 
 ```
 switchbot-temperature-logger/
-├── main.py                    # メインエントリーポイント
+├── main.py                      # メインエントリーポイント + Cloud Functions
 ├── src/
-│   ├── switchbot_api.py      # SwitchBot API クライアント
-│   ├── data_storage.py       # データストレージ管理
-│   ├── scheduler.py          # スケジューラー
-│   └── logger_config.py      # ログ設定
+│   ├── switchbot_api.py        # SwitchBot API クライアント
+│   ├── data_storage.py         # データストレージ管理
+│   ├── google_sheets.py        # Google Sheets 連携
+│   └── logger_config.py        # ログ設定
 ├── config/
-│   └── settings.py           # 設定管理
-├── data/                     # データファイル
-├── logs/                     # ログファイル
-├── .env.example             # 環境変数テンプレート
-├── .env                     # 環境変数（実際の設定）
-└── README.md                # このファイル
+│   └── settings.py             # 設定管理
+├── requirements.txt            # Cloud Functions 依存関係
+├── pyproject.toml              # ローカル開発依存関係
+├── deploy.sh                   # 標準デプロイスクリプト
+├── free-tier-deploy.sh         # 無料枠向けデプロイスクリプト
+├── free-tier-30min-scheduler.yaml # スケジューラー設定
+├── FREE_TIER_GUIDE.md          # 無料枠運用ガイド
+├── .env.example               # 環境変数テンプレート
+└── README.md                  # このファイル
 ```
 
-### コマンド例
+## 関連ドキュメント
 
-```bash
-# API 接続テスト
-uv run main.py --test
-
-# 単発実行テスト
-uv run main.py --once
-```
+- **[FREE_TIER_GUIDE.md](FREE_TIER_GUIDE.md)**: 無料枠での運用方法
+- **[GOOGLE_SHEETS_SETUP.md](GOOGLE_SHEETS_SETUP.md)**: Google Sheets 連携設定
+- **[CLAUDE.md](CLAUDE.md)**: 開発者向け詳細情報
 
 ## ライセンス
 

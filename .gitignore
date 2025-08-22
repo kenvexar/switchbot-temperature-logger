@@ -91,5 +91,23 @@ uv.lock
 # MCP
 .mcp.json
 
+# Claude Code
+.claude/
+
 # Serena cache
 .serena/
+
+# Google Cloud
+.gcloudignore
+.google-cloud-credentials.json
+gcp-service-account.json
+function-source.zip
+deployment-logs/
+
+# Cloud Functions local development
+functions-framework-debug/
+cloudfunctions-emulator/
+
+# Temporary files for Cloud Functions
+/tmp/
+*.tmp

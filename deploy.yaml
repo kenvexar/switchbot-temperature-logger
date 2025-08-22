@@ -1,0 +1,50 @@
+# Google Cloud Functions デプロイ用設定
+
+# デプロイコマンド例:
+# gcloud functions deploy collect_temperature_data \
+#   --runtime python311 \
+#   --trigger-http \
+#   --allow-unauthenticated \
+#   --entry-point collect_temperature_data \
+#   --source . \
+#   --timeout 540s \
+#   --memory 256MB \
+#   --region asia-northeast1 \
+#   --set-env-vars "DATABASE_TYPE=sqlite,DATABASE_PATH=/tmp/temperature.db,LOG_LEVEL=INFO"
+
+# 環境変数の設定例:
+environment_variables:
+  DATABASE_TYPE: "sqlite"
+  DATABASE_PATH: "/tmp/temperature.db"
+  LOG_LEVEL: "INFO"
+  DATA_RETENTION_DAYS: "30"
+  
+  # 以下は実際の値に置き換えてください
+  # SWITCHBOT_TOKEN: "your-switchbot-token"
+  # SWITCHBOT_SECRET: "your-switchbot-secret" 
+  # SWITCHBOT_DEVICE_ID: "your-device-id"
+  # GOOGLE_SHEETS_SPREADSHEET_ID: "your-spreadsheet-id"
+  # GOOGLE_SERVICE_ACCOUNT_KEY: "your-service-account-key-json"
+
+# Function 設定
+function_config:
+  name: "collect_temperature_data"
+  runtime: "python311"
+  entry_point: "collect_temperature_data"
+  timeout: "540s"  # 標準設定
+  memory: "256MB"   # 標準設定
+  
+  # 無料枠向け推奨設定:
+  # timeout: "120s"
+  # memory: "128MB"
+  region: "asia-northeast1"
+  trigger: "http"
+  allow_unauthenticated: true
+
+# 注意事項:
+# 1. 実際のデプロイ前に環境変数を適切に設定してください
+# 2. Google Sheets を使用する場合は、サービスアカウントキーを設定してください
+# 3. セキュリティのため、本番環境では --allow-unauthenticated を削除し、
+#    認証を設定することを推奨します
+# 4. /tmp ディレクトリはCloudFunctionsの一時ディレクトリなので、
+#    永続化が必要な場合はCloud StorageやCloud SQLを検討してください

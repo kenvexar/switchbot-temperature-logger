@@ -1,0 +1,65 @@
+# Google Cloud Scheduler 無料枠向け設定（30分ごと）
+# 無料枠: 月間3ジョブまで（ここでは2ジョブを使用）
+
+# 30分ごとの温度データ収集
+schedule_30min:
+  name: "switchbot-temperature-collector-30min"
+  schedule: "0,30 * * * *"  # 毎時00分と30分ちょうど
+  time_zone: "Asia/Tokyo"
+  description: "SwitchBot温度データを毎時00分と30分ちょうどに収集"
+  target:
+    uri: "https://YOUR_REGION-YOUR_PROJECT_ID.cloudfunctions.net/collect-temperature-data"
+    http_method: "POST"
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "action": "collect"
+      }
+
+# 週1回のクリーンアップ
+schedule_weekly_cleanup:
+  name: "switchbot-cleanup"
+  schedule: "0 2 * * 1"  # 毎週月曜日午前2時
+  time_zone: "Asia/Tokyo"
+  description: "古いデータを週1回クリーンアップ"
+  target:
+    uri: "https://YOUR_REGION-YOUR_PROJECT_ID.cloudfunctions.net/collect-temperature-data"
+    http_method: "POST"
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "action": "cleanup"
+      }
+
+# 使用量見積もり（30分ごと）:
+# - Cloud Functions 月間呼び出し数: 1,444回（48回/日 × 30日 + 4回/月）
+# - Cloud Scheduler ジョブ数: 2個
+# 
+# 無料枠との比較:
+# - Cloud Functions: 1,444回 vs 200万回（0.072%使用）
+# - Cloud Scheduler: 2ジョブ vs 3ジョブ（66%使用）
+# - コンピュート時間: 約370GB秒 vs 400,000GB秒（0.09%使用）
+# 
+# 結論: 30分ごとでも無料枠の1%未満で余裕があります！
+
+# gcloud コマンド例:
+#
+# # 毎時00分と30分ちょうどの温度収集
+# gcloud scheduler jobs create http switchbot-temperature-collector-30min \
+#   --schedule="0,30 * * * *" \
+#   --time-zone="Asia/Tokyo" \
+#   --uri="https://YOUR_REGION-YOUR_PROJECT_ID.cloudfunctions.net/collect-temperature-data" \
+#   --http-method=POST \
+#   --headers="Content-Type=application/json" \
+#   --message-body='{"action": "collect"}'
+#
+# # 週1回のクリーンアップ
+# gcloud scheduler jobs create http switchbot-cleanup \
+#   --schedule="0 2 * * 1" \
+#   --time-zone="Asia/Tokyo" \
+#   --uri="https://YOUR_REGION-YOUR_PROJECT_ID.cloudfunctions.net/collect-temperature-data" \
+#   --http-method=POST \
+#   --headers="Content-Type=application/json" \
+#   --message-body='{"action": "cleanup"}'

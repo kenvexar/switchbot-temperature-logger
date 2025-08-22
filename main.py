@@ -240,13 +240,55 @@ def main():
         log_temperature_data()
         sys.exit(0)
     
-    # GitHub Actions からの実行時は --once を使用してください
-    print("GitHub Actions でのスケジューリングを想定しているため、")
+    # Google Cloud Functions でのスケジューリングを想定しているため、
+    print("Google Cloud Functions でのスケジューリングを想定しているため、")
     print("プログラム自体にはスケジューリング機能がありません。")
     print("")
     print("一回だけ実行する場合: python main.py --once")
     print("テスト実行: python main.py --test")
     sys.exit(0)
+
+# Google Cloud Functions 用のエントリーポイント
+def collect_temperature_data(request):
+    """
+    Google Cloud Functions の HTTP トリガー用エントリーポイント
+    Cloud Scheduler からの定期実行に使用される
+    """
+    import json
+    from flask import jsonify
+    
+    logger = setup_logging(settings.LOG_FILE, settings.LOG_LEVEL)
+    
+    try:
+        logger.info("Cloud Functions での温度データ収集を開始します")
+        
+        # リクエストパラメータを確認
+        request_json = request.get_json(silent=True)
+        action = None
+        
+        if request_json and 'action' in request_json:
+            action = request_json['action']
+        elif request.args.get('action'):
+            action = request.args.get('action')
+        
+        # アクションに応じて処理を分岐
+        if action == 'cleanup':
+            cleanup_old_data()
+            return jsonify({'status': 'success', 'message': 'データクリーンアップが完了しました'})
+        elif action == 'test':
+            success = test_connection()
+            if success:
+                return jsonify({'status': 'success', 'message': 'API 接続テストに成功しました'})
+            else:
+                return jsonify({'status': 'error', 'message': 'API 接続テストに失敗しました'}), 500
+        else:
+            # デフォルトアクション: 温度データ収集
+            log_temperature_data()
+            return jsonify({'status': 'success', 'message': '温度データの収集が完了しました'})
+            
+    except Exception as e:
+        logger.error(f"Cloud Functions 実行中にエラーが発生しました: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 if __name__ == "__main__":
     main()
