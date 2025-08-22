@@ -22,8 +22,7 @@ class Settings:
         self.LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
         self.LOG_FILE = self.BASE_DIR / os.getenv("LOG_FILE", "logs/temperature_logger.log")
         
-        # スケジュール設定
-        self.RECORD_INTERVAL_MINUTES = int(os.getenv("RECORD_INTERVAL_MINUTES", "10"))
+        # データ保持設定
         self.DATA_RETENTION_DAYS = int(os.getenv("DATA_RETENTION_DAYS", "30"))
         
         # ディレクトリを作成
