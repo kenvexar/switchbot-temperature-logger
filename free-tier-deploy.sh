@@ -9,7 +9,7 @@ set -e
 FUNCTION_NAME="collect-temperature-data"
 REGION="asia-northeast1"
 RUNTIME="python311"
-MEMORY="128MB"  # 最小メモリで cost 削減
+MEMORY="256MB"  # Gen2 Functions 最小メモリ
 TIMEOUT="120s"  # 短縮したタイムアウト
 
 echo "Google Cloud Functions（無料枠）にデプロイしています..."
@@ -44,7 +44,7 @@ gcloud functions deploy $FUNCTION_NAME \
     --timeout $TIMEOUT \
     --memory $MEMORY \
     --region $REGION \
-    --set-env-vars "SWITCHBOT_TOKEN=$SWITCHBOT_TOKEN,SWITCHBOT_SECRET=$SWITCHBOT_SECRET,SWITCHBOT_DEVICE_ID=$SWITCHBOT_DEVICE_ID,DATABASE_TYPE=sqlite,DATABASE_PATH=/tmp/temperature.db,LOG_LEVEL=INFO,DATA_RETENTION_DAYS=30"
+    --set-env-vars "SWITCHBOT_TOKEN=$SWITCHBOT_TOKEN,SWITCHBOT_SECRET=$SWITCHBOT_SECRET,SWITCHBOT_DEVICE_ID=$SWITCHBOT_DEVICE_ID,DATABASE_TYPE=sqlite,DATABASE_PATH=/tmp/temperature.db,LOG_LEVEL=INFO,DATA_RETENTION_DAYS=60"
 
 echo "デプロイが完了しました!"
 echo "Function URL: https://$REGION-$(gcloud config get-value project).cloudfunctions.net/$FUNCTION_NAME"
@@ -64,9 +64,9 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         --headers="Content-Type=application/json" \
         --message-body='{"action": "collect"}' || echo "スケジューラーの作成に失敗しました（既に存在する可能性があります）"
     
-    echo "週1回（月曜日午前2時）のクリーンアップジョブを作成しています..."
+    echo "2週に1回（隔週日曜日午前2時）のクリーンアップジョブを作成しています..."
     gcloud scheduler jobs create http switchbot-cleanup \
-        --schedule="0 2 * * 1" \
+        --schedule="0 2 * * 0" \
         --time-zone="Asia/Tokyo" \
         --uri="$FUNCTION_URL" \
         --http-method=POST \
@@ -76,7 +76,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo ""
     echo "=== 無料枠使用量見積もり ==="
     echo "Cloud Functions:"
-    echo "  月間呼び出し数: 約1,444回（無料枠: 200万回）"
+    echo "  月間呼び出し数: 約1,442回（無料枠: 200万回）"
     echo "  コンピュート時間: 約370 GB秒（無料枠: 400,000 GB秒）"
     echo ""
     echo "Cloud Scheduler:"

@@ -40,7 +40,7 @@ gcloud functions deploy $FUNCTION_NAME \
     --timeout $TIMEOUT \
     --memory $MEMORY \
     --region $REGION \
-    --set-env-vars "SWITCHBOT_TOKEN=$SWITCHBOT_TOKEN,SWITCHBOT_SECRET=$SWITCHBOT_SECRET,SWITCHBOT_DEVICE_ID=$SWITCHBOT_DEVICE_ID,DATABASE_TYPE=sqlite,DATABASE_PATH=/tmp/temperature.db,LOG_LEVEL=INFO,DATA_RETENTION_DAYS=30"
+    --set-env-vars "SWITCHBOT_TOKEN=$SWITCHBOT_TOKEN,SWITCHBOT_SECRET=$SWITCHBOT_SECRET,SWITCHBOT_DEVICE_ID=$SWITCHBOT_DEVICE_ID,DATABASE_TYPE=sqlite,DATABASE_PATH=/tmp/temperature.db,LOG_LEVEL=INFO,DATA_RETENTION_DAYS=60"
 
 echo "デプロイが完了しました!"
 echo "Function URL: https://$REGION-$(gcloud config get-value project).cloudfunctions.net/$FUNCTION_NAME"
